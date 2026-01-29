@@ -1,0 +1,5 @@
+{
+  "name": "FactureAuto - Gestionnaire de Factures",
+  "description": "Une application professionnelle pour auto-entrepreneurs permettant de créer, gérer et exporter des factures conformes à la législation française, avec assistance IA pour la rédaction.",
+  "requestFramePermissions": []
+}
