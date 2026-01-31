@@ -57,8 +57,9 @@ const App: React.FC = () => {
   const [activeDocument, setActiveDocument] = useState<BillingDocument | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
   
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  // Sidebar states
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Desktop collapse state
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobile drawer state
 
   const [isProcessingAI, setIsProcessingAI] = useState(false);
   const [isImportingPDF, setIsImportingPDF] = useState(false);
@@ -89,6 +90,11 @@ const App: React.FC = () => {
     localStorage.setItem('factureauto_v3_clients', JSON.stringify(clients));
     localStorage.setItem('factureauto_v3_profiles', JSON.stringify(profiles));
   }, [documents, clients, profiles]);
+
+  // Fermer le menu mobile lors d'un changement de vue
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [viewMode]);
 
   // Filtrage
   const filteredDocs = useMemo(() => {
@@ -131,28 +137,32 @@ const App: React.FC = () => {
     if (!activeDocument) return;
     setIsGeneratingPDF(true);
     
-    // Ajout d'une classe temporaire pour le mode PDF
-    document.body.classList.add('pdf-mode');
+    // On cible l'élément imprimable
     const element = document.getElementById('invoice-printable');
     
-    // Options de rendu strictes
     const opt = {
       margin: 0,
       filename: `${activeDocument.type}_${activeDocument.number}.pdf`,
       image: { type: 'jpeg', quality: 1 },
       html2canvas: { 
         scale: 2, 
-        useCORS: true, 
-        letterRendering: true,
-        scrollX: 0, 
+        useCORS: true,
+        width: 794,        
+        windowWidth: 794,  
+        scrollX: 0,
         scrollY: 0,
-        windowWidth: 794, // Largeur A4 fixe
-        logging: false
+        x: 0,
+        y: 0
       },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true }
+      jsPDF: { 
+        unit: 'px', 
+        format: [794, 1123],
+        orientation: 'portrait',
+        compress: true,
+        hotfixes: ['px_scaling'] 
+      }
     };
 
-    // On s'assure que le scroll n'affecte pas la capture
     const currentScroll = window.scrollY;
     window.scrollTo(0, 0);
 
@@ -163,15 +173,14 @@ const App: React.FC = () => {
         .save()
         .then(() => {
           setIsGeneratingPDF(false);
-          document.body.classList.remove('pdf-mode');
           window.scrollTo(0, currentScroll);
         })
         .catch((err: any) => {
-          console.error("Erreur PDF:", err);
+          console.error("PDF Generation Error:", err);
           setIsGeneratingPDF(false);
-          document.body.classList.remove('pdf-mode');
+          window.scrollTo(0, currentScroll);
         });
-    }, 200);
+    }, 150);
   };
 
   const handleImportInvoicePDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -258,12 +267,12 @@ const App: React.FC = () => {
           <h1 className="text-3xl font-black text-gray-900 tracking-tight">Tableau de Bord</h1>
           <p className="text-gray-500 mt-1">Gérez vos factures, devis et commandes.</p>
         </div>
-        <div className="flex flex-wrap gap-3 w-full xl:w-auto">
+        <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto mt-4 xl:mt-0">
           <input type="file" ref={fileInputRef} className="hidden" accept="application/pdf" onChange={handleImportInvoicePDF} />
-          <Button variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={isImportingPDF} icon={isImportingPDF ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} />}>
+          <Button className="w-full sm:w-auto" variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={isImportingPDF} icon={isImportingPDF ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} />}>
             {isImportingPDF ? 'IA en cours...' : 'Importer PDF'}
           </Button>
-          <Button onClick={() => handleCreateNew()} icon={<Plus size={18} />}>Nouveau Document</Button>
+          <Button className="w-full sm:w-auto" onClick={() => handleCreateNew()} icon={<Plus size={18} />}>Nouveau</Button>
         </div>
       </div>
 
@@ -291,24 +300,24 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-gray-50 flex flex-col sm:flex-row justify-between items-center bg-white sticky top-0 z-10 gap-4">
-           <div className="flex items-center gap-4">
-              <h2 className="font-bold text-gray-800">Historique des documents</h2>
+      <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+        <div className="p-6 border-b border-gray-50 flex flex-col md:flex-row justify-between items-center bg-white gap-4">
+           <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+              <h2 className="font-bold text-gray-800">Historique</h2>
               {selectedDocIds.length > 0 && (
                 <div className="flex items-center gap-3 animate-in zoom-in-95 duration-200">
-                  <span className="text-xs font-bold bg-blue-50 text-blue-600 px-3 py-1 rounded-full">{selectedDocIds.length} sélectionné(s)</span>
+                  <span className="text-xs font-bold bg-blue-50 text-blue-600 px-3 py-1 rounded-full">{selectedDocIds.length}</span>
                   <button onClick={() => initiateDelete(selectedDocIds)} className="flex items-center gap-2 text-xs font-black text-red-500 uppercase tracking-widest hover:bg-red-50 px-3 py-1.5 rounded-xl transition-all"><Trash2 size={14} /> Supprimer</button>
                 </div>
               )}
            </div>
-           <div className="relative w-full sm:w-64">
+           <div className="relative w-full md:w-64">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input type="text" placeholder="Rechercher..." className="pl-10 pr-4 py-2 border border-gray-100 rounded-xl text-xs outline-none focus:ring-1 focus:ring-blue-500 w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
            </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
+        <div className="overflow-x-auto w-full custom-scrollbar">
+          <table className="w-full text-left min-w-[800px]">
             <thead className="bg-gray-50 text-[10px] font-black uppercase text-gray-400 tracking-widest">
               <tr>
                 <th className="px-6 py-4 w-10">
@@ -341,11 +350,24 @@ const App: React.FC = () => {
                       {doc.type}
                     </span>
                   </td>
-                  <td className="px-6 py-4 font-bold">{doc.number}</td>
-                  <td className="px-6 py-4 text-sm font-medium">{doc.client.name || "Client"}</td>
+                  <td className="px-6 py-4">
+                    <span className="font-mono text-[10px] font-bold text-gray-600 bg-gray-50 px-2 py-1 rounded-md border border-gray-100 whitespace-nowrap">
+                      {doc.number}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${doc.client.type === 'entreprise' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
+                            {doc.client.type === 'entreprise' ? <Building2 size={12} /> : <User size={12} />}
+                        </div>
+                        <span className="font-bold text-gray-700 text-xs truncate max-w-[150px]">{doc.client.name || "Client sans nom"}</span>
+                    </div>
+                  </td>
                   <td className="px-6 py-4 text-xs text-gray-500">{new Date(doc.date).toLocaleDateString('fr-FR')}</td>
-                  <td className="px-6 py-4 text-right font-black">
-                    {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(doc.items.reduce((acc, i) => acc + (i.quantity * i.unitPrice), 0))}
+                  <td className="px-6 py-4 text-right">
+                    <span className="font-black text-gray-900 bg-gray-50 px-2 py-1 rounded-md text-xs whitespace-nowrap">
+                        {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(doc.items.reduce((acc, i) => acc + (i.quantity * i.unitPrice), 0))}
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-center" onClick={e => e.stopPropagation()}>
                     <div className="flex justify-center gap-1">
@@ -394,10 +416,15 @@ const App: React.FC = () => {
       <div className="p-4 md:p-8 max-w-5xl mx-auto pb-24 animate-in fade-in duration-500">
         <div className="flex justify-between items-center mb-8 no-print">
           <Button variant="ghost" icon={<ChevronLeft size={18} />} onClick={() => setViewMode('dashboard')}>Retour</Button>
-          <div className="flex gap-4">
-             <Button variant="secondary" onClick={() => setViewMode('preview')}>Aperçu</Button>
+          <div className="flex gap-2 md:gap-4">
+             <Button className="hidden md:flex" variant="secondary" onClick={() => setViewMode('preview')}>Aperçu</Button>
              <Button variant="primary" icon={<Save size={18} />} onClick={handleSaveDocument}>Enregistrer</Button>
           </div>
+        </div>
+        
+        {/* Mobile Preview Button */}
+        <div className="md:hidden mb-6">
+           <Button className="w-full" variant="secondary" onClick={() => setViewMode('preview')}>Voir l'aperçu PDF</Button>
         </div>
 
         <div className="bg-white rounded-[2rem] md:rounded-[3rem] shadow-xl border border-gray-100 overflow-hidden">
@@ -405,12 +432,12 @@ const App: React.FC = () => {
           <div className="p-6 md:p-12 border-b border-gray-50 bg-gray-50/50">
              <div className="flex flex-col md:flex-row justify-between items-end gap-6">
                 <div className="flex-1 space-y-4 w-full">
-                  <div className="flex gap-2 mb-2">
+                  <div className="flex gap-2 mb-2 overflow-x-auto pb-2 md:pb-0">
                     {(['facture', 'devis', 'commande'] as DocumentType[]).map(type => (
                       <button 
                         key={type}
                         onClick={() => setActiveDocument({ ...activeDocument, type })}
-                        className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg transition-all ${
+                        className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg transition-all shrink-0 ${
                           activeDocument.type === type 
                           ? (type === 'devis' ? 'bg-emerald-600 text-white' : type === 'commande' ? 'bg-violet-600 text-white' : 'bg-blue-600 text-white') 
                           : 'bg-white text-gray-400 border border-gray-100'
@@ -421,7 +448,7 @@ const App: React.FC = () => {
                     ))}
                   </div>
                   <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Objet du document</label>
-                  <input className="text-2xl md:text-3xl font-black text-gray-900 bg-transparent border-b-2 border-gray-200 focus:border-blue-600 outline-none w-full" value={activeDocument.subject} onChange={(e) => setActiveDocument({ ...activeDocument, subject: e.target.value })} placeholder="Ex: Création de logo..." />
+                  <input className="text-xl md:text-3xl font-black text-gray-900 bg-transparent border-b-2 border-gray-200 focus:border-blue-600 outline-none w-full" value={activeDocument.subject} onChange={(e) => setActiveDocument({ ...activeDocument, subject: e.target.value })} placeholder="Ex: Création de logo..." />
                 </div>
                 <div className="w-full md:w-48 space-y-4">
                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Numéro</label>
@@ -435,7 +462,7 @@ const App: React.FC = () => {
             <section className="grid grid-cols-1 md:grid-cols-2 gap-12">
               <div className="space-y-6">
                 <div className="flex justify-between items-center"><p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Votre Profil</p><button onClick={() => setShowProfileSelector(true)} className="text-[10px] font-bold text-blue-600 hover:underline">Changer</button></div>
-                <div className="bg-gray-50/50 p-6 rounded-3xl border border-gray-100"><p className="font-bold text-gray-900">{activeDocument.seller.name}</p><p className="text-xs text-gray-500 mt-1">{activeDocument.seller.email}</p></div>
+                <div className="bg-gray-50/50 p-6 rounded-3xl border border-gray-100"><p className="font-bold text-gray-900">{activeDocument.seller.name}</p><p className="text-xs text-gray-500 mt-1 break-all">{activeDocument.seller.email}</p></div>
               </div>
               <div className="space-y-6">
                 <div className="flex justify-between items-center"><p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Destinataire</p><button onClick={() => setShowClientSelector(true)} className="text-[10px] font-bold text-blue-600 hover:underline">Rechercher</button></div>
@@ -455,7 +482,7 @@ const App: React.FC = () => {
               <div className="flex justify-between items-center mb-6"><p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Prestations & Tarifs</p><Button variant="ghost" size="sm" icon={<Plus size={16} />} onClick={() => setActiveDocument({...activeDocument, items: [...activeDocument.items, {id: crypto.randomUUID(), description: "", quantity: 1, unitPrice: 0}]})}>Ajouter</Button></div>
               <div className="space-y-4">
                 {activeDocument.items.map(item => (
-                  <div key={item.id} className="flex flex-col md:flex-row gap-4 items-start group">
+                  <div key={item.id} className="flex flex-col md:flex-row gap-4 items-start group border-b md:border-b-0 border-gray-100 pb-4 md:pb-0 last:border-0 last:pb-0">
                     <div className="flex-1 relative w-full">
                       <input className={inputClass} placeholder="Désignation de la prestation..." value={item.description} onChange={(e) => setActiveDocument({...activeDocument, items: activeDocument.items.map(i => i.id === item.id ? {...i, description: e.target.value} : i)})} />
                       <button onClick={() => handleImproveDesc(item.id)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-purple-500 transition-colors" title="Améliorer via IA"><Sparkles size={16} /></button>
@@ -500,21 +527,21 @@ const App: React.FC = () => {
 
   const renderClients = () => (
     <div className="p-4 md:p-8 animate-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-center mb-10">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
         <h1 className="text-3xl font-black text-gray-900 tracking-tight">Mes Clients</h1>
-        <Button onClick={() => setClients([...clients, { id: crypto.randomUUID(), type: 'particulier', name: "Nouveau Client", address: "", zipCode: "", city: "", country: "France", email: "", phone: "" }])} icon={<UserPlus size={18} />}>Ajouter</Button>
+        <Button className="w-full md:w-auto" onClick={() => setClients([...clients, { id: crypto.randomUUID(), type: 'particulier', name: "Nouveau Client", address: "", zipCode: "", city: "", country: "France", email: "", phone: "" }])} icon={<UserPlus size={18} />}>Ajouter</Button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {clients.map(client => (
           <div key={client.id} className="bg-white rounded-[2rem] border border-gray-100 p-8 shadow-sm group hover:shadow-md transition-all">
             <div className="flex justify-between items-start mb-8">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 w-full">
                  <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shrink-0">
                     {client.type === 'entreprise' ? <Building2 size={24} /> : <User size={24} />}
                  </div>
-                 <div className="flex-1">
-                    <input className="font-black text-xl text-gray-900 bg-transparent outline-none border-b border-transparent focus:border-blue-500 w-full" value={client.name} onChange={(e) => setClients(clients.map(c => c.id === client.id ? { ...c, name: e.target.value } : c))} placeholder="Nom ou Raison Sociale" />
-                    <div className="flex gap-2 mt-2">
+                 <div className="flex-1 min-w-0">
+                    <input className="font-black text-xl text-gray-900 bg-transparent outline-none border-b border-transparent focus:border-blue-500 w-full truncate" value={client.name} onChange={(e) => setClients(clients.map(c => c.id === client.id ? { ...c, name: e.target.value } : c))} placeholder="Nom ou Raison Sociale" />
+                    <div className="flex gap-2 mt-2 flex-wrap">
                         {(['particulier', 'entreprise'] as const).map(t => (
                             <button key={t} onClick={() => setClients(clients.map(c => c.id === client.id ? { ...c, type: t } : c))} className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md transition-all ${client.type === t ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-400'}`}>
                                 {t}
@@ -523,10 +550,10 @@ const App: React.FC = () => {
                     </div>
                  </div>
               </div>
-              <button onClick={() => setClients(clients.filter(c => c.id !== client.id))} className="p-2 text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
+              <button onClick={() => setClients(clients.filter(c => c.id !== client.id))} className="p-2 text-gray-300 hover:text-red-500 transition-colors ml-2"><Trash2 size={18} /></button>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6">
                 <div className="space-y-4">
                     <p className="text-[10px] font-black uppercase text-blue-600 tracking-widest flex items-center gap-2"><MapPin size={10} /> Facturation</p>
                     <div>
@@ -606,22 +633,22 @@ const App: React.FC = () => {
 
   const renderProfiles = () => (
     <div className="p-4 md:p-8 max-w-5xl mx-auto animate-in slide-in-from-bottom-4 duration-500 pb-24">
-        <div className="flex justify-between items-center mb-10">
-            <h1 className="text-3xl font-black tracking-tight text-gray-900">Mes Profils Professionnels</h1>
-            <Button onClick={handleAddProfile} icon={<Plus size={18} />}>Ajouter un profil</Button>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
+            <h1 className="text-3xl font-black tracking-tight text-gray-900">Mes Profils</h1>
+            <Button className="w-full md:w-auto" onClick={handleAddProfile} icon={<Plus size={18} />}>Ajouter un profil</Button>
         </div>
         
         <div className="grid grid-cols-1 gap-12">
             {profiles.map(p => (
-                <div key={p.id} className={`bg-white rounded-[2rem] border-2 p-8 md:p-12 shadow-sm space-y-10 transition-all ${p.isDefault ? 'border-blue-600' : 'border-gray-100'}`}>
+                <div key={p.id} className={`bg-white rounded-[2rem] border-2 p-6 md:p-12 shadow-sm space-y-10 transition-all ${p.isDefault ? 'border-blue-600' : 'border-gray-100'}`}>
                     <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
                         <div className={`w-16 h-16 rounded-3xl flex items-center justify-center text-white shrink-0 shadow-lg transition-colors ${p.isDefault ? 'bg-blue-600 shadow-blue-600/20' : 'bg-gray-400 shadow-gray-400/20'}`}>
                             <Briefcase size={32} />
                         </div>
-                        <div className="flex-1 w-full">
-                            <div className="flex justify-between items-center gap-4">
+                        <div className="flex-1 w-full min-w-0">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                                 <input className="text-3xl font-black text-gray-900 w-full outline-none bg-transparent border-b border-gray-100 focus:border-blue-600 py-2 transition-all" value={p.name} onChange={(e) => setProfiles(profiles.map(pr => pr.id === p.id ? { ...pr, name: e.target.value } : pr))} placeholder="Ma Micro-Entreprise" />
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 self-end md:self-auto">
                                     <button 
                                         onClick={() => handleSetDefaultProfile(p.id)}
                                         className={`p-3 rounded-2xl transition-all ${p.isDefault ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-300 hover:text-blue-400'}`}
@@ -691,7 +718,7 @@ const App: React.FC = () => {
                             </div>
                             <div className={`transition-opacity ${!p.displayBankDetails ? 'opacity-40' : 'opacity-100'}`}>
                                 <label className={labelClass}>IBAN</label>
-                                <input className={`${inputClass} font-mono`} value={p.iban || ''} onChange={(e) => setProfiles(profiles.map(pr => pr.id === p.id ? { ...pr, iban: e.target.value } : pr))} placeholder="FR76 1234..." />
+                                <input className={`${inputClass} font-mono text-xs`} value={p.iban || ''} onChange={(e) => setProfiles(profiles.map(pr => pr.id === p.id ? { ...pr, iban: e.target.value } : pr))} placeholder="FR76 1234..." />
                             </div>
                             <div className={`transition-opacity ${!p.displayBankDetails ? 'opacity-40' : 'opacity-100'}`}>
                                 <label className={labelClass}>BIC / SWIFT</label>
@@ -712,7 +739,7 @@ const App: React.FC = () => {
             ))}
         </div>
         
-        <div className="fixed bottom-8 right-8 no-print">
+        <div className="fixed bottom-8 right-8 no-print z-40">
             <Button size="lg" icon={<Save size={20} />} onClick={() => setViewMode('dashboard')} className="shadow-2xl">Enregistrer et quitter</Button>
         </div>
     </div>
@@ -720,21 +747,51 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-[#fcfdfe]">
+      {/* Mobile Header */}
+      <div className="md:hidden flex items-center justify-between p-4 bg-white border-b border-gray-100 sticky top-0 z-40">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shrink-0"><FileText size={16} /></div>
+          <span className="font-black text-lg text-gray-900">FactureAuto</span>
+        </div>
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-gray-500">
+           {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+      </div>
+
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar Navigation */}
-      <aside className={`fixed md:sticky top-0 h-screen z-50 bg-white border-r border-gray-100 flex flex-col transition-all ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
-        <div className="p-8 flex items-center gap-4">
+      <aside className={`
+        fixed md:sticky top-0 h-screen z-50 bg-white border-r border-gray-100 flex flex-col transition-transform duration-300 ease-in-out
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
+        ${isSidebarOpen ? 'w-64' : 'w-20'}
+        w-64 md:w-auto
+      `}>
+        <div className="p-8 flex items-center gap-4 hidden md:flex">
           <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shrink-0"><FileText size={20} /></div>
           {isSidebarOpen && <span className="font-black text-lg text-gray-900">FactureAuto</span>}
         </div>
+        
+        {/* Mobile Sidebar Header */}
+        <div className="p-6 md:hidden">
+          <h2 className="text-xs font-black uppercase text-gray-400 tracking-widest mb-4">Navigation</h2>
+        </div>
+
         <nav className="flex-1 px-4 space-y-2">
           <button onClick={() => setViewMode('dashboard')} className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all ${viewMode === 'dashboard' ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/20' : 'text-gray-400 hover:bg-gray-50'}`}>
-            <LayoutDashboard size={22} /> {isSidebarOpen && <span className="text-sm font-bold">Dashboard</span>}
+            <LayoutDashboard size={22} /> {(isSidebarOpen || isMobileMenuOpen) && <span className="text-sm font-bold">Dashboard</span>}
           </button>
           <button onClick={() => setViewMode('clients')} className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all ${viewMode === 'clients' ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/20' : 'text-gray-400 hover:bg-gray-50'}`}>
-            <Users size={22} /> {isSidebarOpen && <span className="text-sm font-bold">Clients</span>}
+            <Users size={22} /> {(isSidebarOpen || isMobileMenuOpen) && <span className="text-sm font-bold">Clients</span>}
           </button>
           <button onClick={() => setViewMode('profiles')} className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all ${viewMode === 'profiles' ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/20' : 'text-gray-400 hover:bg-gray-50'}`}>
-            <UserCircle size={22} /> {isSidebarOpen && <span className="text-sm font-bold">Profils</span>}
+            <UserCircle size={22} /> {(isSidebarOpen || isMobileMenuOpen) && <span className="text-sm font-bold">Profils</span>}
           </button>
         </nav>
         <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-8 text-gray-300 hidden md:block">
@@ -742,7 +799,7 @@ const App: React.FC = () => {
         </button>
       </aside>
 
-      <main className="flex-1">
+      <main className="flex-1 w-full overflow-hidden">
         {viewMode === 'dashboard' && renderDashboard()}
         {viewMode === 'edit' && renderEditForm()}
         {viewMode === 'clients' && renderClients()}
@@ -756,8 +813,23 @@ const App: React.FC = () => {
                   <Button variant="primary" icon={<Save size={18} />} onClick={handleSaveDocument}>Terminer</Button>
                 </div>
              </div>
-             <div className="flex justify-center bg-gray-100 p-4 md:p-10 rounded-3xl overflow-auto custom-scrollbar">
-                <InvoicePreview invoice={activeDocument} />
+             
+             {/* Container de prévisualisation avec mise à l'échelle pour mobile */}
+             <div className="flex justify-center bg-gray-100 p-2 md:p-10 rounded-3xl overflow-hidden relative min-h-[500px] md:min-h-0">
+                {/* 
+                  On utilise une transformation CSS (scale) pour faire rentrer la facture de 794px 
+                  sur un écran de mobile (300-400px).
+                  origin-top-left permet de coller la facture en haut à gauche.
+                */}
+                <div className="md:block hidden">
+                   <InvoicePreview invoice={activeDocument} />
+                </div>
+                
+                <div className="md:hidden w-full overflow-x-auto flex justify-center pt-4 pb-20">
+                   <div style={{ transform: 'scale(0.42)', transformOrigin: 'top center', height: '1123px' }}>
+                     <InvoicePreview invoice={activeDocument} />
+                   </div>
+                </div>
              </div>
           </div>
         )}
@@ -766,17 +838,17 @@ const App: React.FC = () => {
       {/* Modals de sélection */}
       {showClientSelector && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-6" onClick={() => setShowClientSelector(false)}>
-           <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-2xl font-black mb-6 text-gray-900">Charger un client</h3>
-            <div className="space-y-3 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+           <div className="bg-white rounded-[2.5rem] p-6 md:p-10 w-full max-w-md shadow-2xl h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <h3 className="text-2xl font-black mb-6 text-gray-900 shrink-0">Charger un client</h3>
+            <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar">
               {clients.map(c => (
                 <button key={c.id} className="w-full text-left p-6 hover:bg-blue-600 hover:text-white rounded-3xl border border-gray-100 flex items-center gap-4 transition-all group" onClick={() => { setActiveDocument({ ...activeDocument!, client: c }); setShowClientSelector(false); }}>
-                  <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center group-hover:bg-white/20 group-hover:text-white transition-colors">
+                  <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center group-hover:bg-white/20 group-hover:text-white transition-colors shrink-0">
                     {c.type === 'entreprise' ? <Building2 size={20} /> : <User size={20} />}
                   </div>
-                  <div>
-                    <span className="font-bold block text-gray-900 group-hover:text-white">{c.name}</span>
-                    <span className="text-xs text-gray-500 group-hover:text-white/80">{c.city || 'Ville non renseignée'}</span>
+                  <div className="min-w-0">
+                    <span className="font-bold block text-gray-900 group-hover:text-white truncate">{c.name}</span>
+                    <span className="text-xs text-gray-500 group-hover:text-white/80 truncate block">{c.city || 'Ville non renseignée'}</span>
                   </div>
                 </button>
               ))}
@@ -788,16 +860,16 @@ const App: React.FC = () => {
 
       {showProfileSelector && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-6" onClick={() => setShowProfileSelector(false)}>
-           <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+           <div className="bg-white rounded-[2.5rem] p-6 md:p-10 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-2xl font-black mb-6 text-gray-900">Changer d'émetteur</h3>
             <div className="space-y-3">
               {profiles.map(p => (
                 <button key={p.id} className="w-full text-left p-6 hover:bg-blue-600 hover:text-white rounded-3xl border border-gray-100 flex items-center gap-4 transition-all group" onClick={() => { setActiveDocument({ ...activeDocument!, seller: p, showBankDetails: p.displayBankDetails ?? true }); setShowProfileSelector(false); }}>
-                  <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center group-hover:bg-white/20 group-hover:text-white transition-colors">
+                  <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center group-hover:bg-white/20 group-hover:text-white transition-colors shrink-0">
                     <Briefcase size={20} />
                   </div>
-                  <div className="flex-1">
-                    <span className="font-bold block text-gray-900 group-hover:text-white">{p.name}</span>
+                  <div className="min-w-0">
+                    <span className="font-bold block text-gray-900 group-hover:text-white truncate">{p.name}</span>
                     {p.isDefault && <span className="text-[9px] uppercase font-black tracking-widest text-blue-600 group-hover:text-white/80">Par défaut</span>}
                   </div>
                 </button>
